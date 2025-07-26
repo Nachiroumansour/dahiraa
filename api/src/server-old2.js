@@ -119,6 +119,7 @@ async function initializeDatabase() {
     
     const { Client } = require('pg');
     const bcrypt = require('bcryptjs');
+    const { randomUUID } = require('crypto');
 
     const databaseUrl = process.env.DATABASE_URL;
     if (!databaseUrl) {
@@ -228,31 +229,35 @@ async function initializeDatabase() {
     await client.query(createTablesSQL);
     console.log('✅ Tables créées avec succès');
 
-    // Supprimer tous les utilisateurs existants et recréer avec des IDs fixes
-    console.log('🔄 Suppression des utilisateurs existants...');
-    await client.query('DELETE FROM "User" WHERE email IN ($1, $2)', ['admin@dahiraa.com', 'test@dahiraa.com']);
+    // Check if users exist
+    const existingUsers = await client.query('SELECT email FROM "User" WHERE email IN ($1, $2)',
+      ['admin@dahiraa.com', 'test@dahiraa.com']);
 
-    // Créer les utilisateurs avec des IDs FIXES
-    const hashedPassword = await bcrypt.hash('admin123', 10);
-    const adminId = 'admin-user-12345';
-    const testId = 'test-user-67890';
-    
-    await client.query(
-      'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
-      [adminId, 'admin@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
-    );
-    console.log('✅ Utilisateur admin@dahiraa.com créé (ID:', adminId + ')');
+    const existingEmails = existingUsers.rows.map(row => row.email);
 
-    await client.query(
-      'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
-      [testId, 'test@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
-    );
-    console.log('✅ Utilisateur test@dahiraa.com créé (ID:', testId + ')');
+    if (!existingEmails.includes('admin@dahiraa.com')) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      const adminId = randomUUID();
+      await client.query(
+        'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
+        [adminId, 'admin@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
+      );
+      console.log('✅ Utilisateur admin@dahiraa.com créé (ID:', adminId + ')');
+    }
+
+    if (!existingEmails.includes('test@dahiraa.com')) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      const testId = randomUUID();
+      await client.query(
+        'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
+        [testId, 'test@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
+      );
+      console.log('✅ Utilisateur test@dahiraa.com créé (ID:', testId + ')');
+    }
 
     await client.end();
     console.log('🎉 Base de données PostgreSQL configurée avec succès !');
     console.log('📋 Identifiants: admin@dahiraa.com / admin123');
-    console.log('⚠️ IMPORTANT: Les anciens tokens ne fonctionneront plus !');
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
   }
