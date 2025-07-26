@@ -5,8 +5,10 @@ const {
   getMemberById,
   updateMember,
   deleteMember,
-  getMemberStats
-} = require('../controllers/memberControllerSQLite');
+  getMemberStats,
+  exportMembersToExcel,
+  exportMembersToPDF
+} = require('../controllers/memberController');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { upload, handleUploadError } = require('../middleware/upload');
 

@@ -1,6 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const bcrypt = require('bcryptjs');
-const { v4: uuidv4 } = require('crypto');
+const { randomUUID } = require('crypto');
 
 // Chemin vers la base de données
 const dbPath = process.env.DATABASE_URL || 'prisma/dev.db';
@@ -115,7 +115,7 @@ async function setupDatabase() {
       // Créer l'utilisateur admin
       try {
         const hashedPassword = await bcrypt.hash('admin123', 10);
-        const userId = uuidv4();
+        const userId = randomUUID();
         
         db.run(`
           INSERT OR IGNORE INTO "User" (id, email, password, role, createdAt, updatedAt)
@@ -129,7 +129,7 @@ async function setupDatabase() {
           console.log('✅ Utilisateur admin créé avec succès');
           
           // Créer un utilisateur test
-          const testUserId = uuidv4();
+          const testUserId = randomUUID();
           db.run(`
             INSERT OR IGNORE INTO "User" (id, email, password, role, createdAt, updatedAt)
             VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)

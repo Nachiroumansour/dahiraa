@@ -6,15 +6,15 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
   id        String   @id @default(cuid())
   email     String   @unique
   password  String
-  role      UserRole @default(GESTIONNAIRE)
+  role      Role     @default(ADMIN)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -22,130 +22,111 @@ model User {
 }
 
 model Member {
-  id                String    @id @default(cuid())
-  
-  // 1- Informations de l'adhérent
-  nom               String
-  prenom            String
-  telephone         String    @unique
-  email             String?
-  adresse           String
-  adresseComplement String?   // Villa N°78, etc.
-  profession        String?
-  genre             Genre
-  dateNaissance     DateTime
-  
-  // 2- Autres informations
-  situationMatrimoniale String?  // Célibataire, Marié, etc.
-  dateAdhesion       DateTime    @default(now())
-  decouverteDahira   String?     // Via un membre, À travers les TIC
-  commission         String?     // Secrétaire General et Pr Communication
-  niveauArabe        NiveauArabe? // Niveau débutant, moyen, bon, excellent
-  categorie          Categorie?  // Catégorie A ou B
-  
-  // 3- Informations médicales
-  antecedentsMedicaux String?    // Problèmes médicaux
-  allergies          String?     // Allergies
-  traitements        String?     // Médicaments pris régulièrement
-  contactUrgenceTel  String?     // Numéro d'urgence
-  
-  // 4- Informations du parent ou tuteur
-  typeAutorite       TypeAutorite? // Père, Mère, Tuteur légal
-  contactUrgenceNom  String?     // Nom du parent/tuteur
-  contactUrgencePrenom String?   // Prénom du parent/tuteur
-  contactUrgenceTelephone String? // Téléphone du parent/tuteur
-  
-  // Informations existantes
-  numeroAdhesion     String    @unique
-  photoProfile       String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                    String        @id @default(cuid())
+  nom                   String
+  prenom                String
+  dateNaissance         DateTime?
+  lieuNaissance         String?
+  adresse               String?
+  adresseComplement     String?
+  telephone             String?
+  email                 String?
+  profession            String?
+  genre                 String?
+  situationMatrimoniale String?
+  decouverteDahira      String?
+  dateAdhesion          DateTime?
+  numeroAdhesion        String?
+  statut                Statut        @default(ACTIF)
+  photo                 String?
+  commission            String?       // Secrétaire General et Pr Communication
+  niveauArabe           NiveauArabe?  // Niveau débutant, moyen, bon, excellent
+  categorie             Categorie?    // Catégorie A ou B
+  antecedentsMedicaux   String?
+  allergies             String?
+  traitements           String?
+  contactUrgenceTel     String?
+  typeAutorite          String?
+  contactUrgenceNom     String?
+  contactUrgencePrenom  String?
+  contactUrgenceTelephone String?
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
-  // Relations
-  cotisations        Cotisation[]
-  eventParticipations EventParticipation[]
+  cotisations           Cotisation[]
 
   @@map("members")
 }
 
 model Cotisation {
-  id        String   @id @default(cuid())
-  memberId  String
-  montant   Float
-  semaine   DateTime // Date du jeudi de la semaine
-  statut    StatutPaiement @default(PAYE)
-  type      TypeCotisation @default(HEBDOMADAIRE) // HEBDOMADAIRE ou EVENEMENT
-  evenementType String? // Type d'événement (MARIAGE, BAPTEME, etc.)
-  description String? // Description de l'événement
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  memberId     String
+  montant      Float
+  datePaiement DateTime
+  type         Type     @default(MENSUELLE)
+  mois         String?
+  annee        Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  // Relations
-  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  member       Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
 
   @@map("cotisations")
 }
 
-model Event {
+model Evenement {
+  id          String        @id @default(cuid())
+  titre       String
+  description String?
+  dateDebut   DateTime
+  dateFin     DateTime?
+  lieu        String?
+  type        TypeEvenement @default(REUNION)
+  statut      Statut        @default(PLANIFIE)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("evenements")
+}
+
+model Expense {
   id          String   @id @default(cuid())
   titre       String
-  lieu        String
-  dateDebut   DateTime
-  dateFin     DateTime
-  montantContribution Float
+  montant     Float
+  date        DateTime
+  categorie   String?
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
-  participants EventParticipation[]
-  depenses     Expense[]
-
-  @@map("events")
-}
-
-model EventParticipation {
-  id        String   @id @default(cuid())
-  eventId   String
-  memberId  String
-  montantPaye Float   @default(0)
-  statut    StatutPaiement @default(EN_ATTENTE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  event     Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  member    Member   @relation(fields: [memberId], references: [id], onDelete: Cascade)
-
-  @@unique([eventId, memberId])
-  @@map("event_participations")
-}
-
-model Expense {
-  id          String    @id @default(cuid())
-  montant     Float
-  description String
-  type        TypeDepense
-  eventId     String?   // Optionnel si liée à un événement
-  date        DateTime  @default(now())
-  justificatif String?  // Chemin vers le fichier
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  // Relations
-  event       Event?    @relation(fields: [eventId], references: [id], onDelete: SetNull)
-
   @@map("expenses")
 }
 
-enum UserRole {
+enum Role {
   ADMIN
   GESTIONNAIRE
 }
 
-enum Genre {
-  HOMME
-  FEMME
+enum Statut {
+  ACTIF
+  INACTIF
+  PLANIFIE
+  EN_COURS
+  TERMINE
+  ANNULE
+}
+
+enum Type {
+  MENSUELLE
+  ANNUELLE
+  SPECIALE
+}
+
+enum TypeEvenement {
+  REUNION
+  FORMATION
+  CELEBRATION
+  AUTRE
 }
 
 enum NiveauArabe {
@@ -153,27 +134,6 @@ enum NiveauArabe {
   MOYEN
   BON
   EXCELLENT
-}
-
-enum TypeAutorite {
-  PERE
-  MERE
-  TUTEUR_LEGAL
-}
-
-enum StatutPaiement {
-  PAYE
-  EN_ATTENTE
-}
-
-enum TypeCotisation {
-  HEBDOMADAIRE
-  EVENEMENT
-}
-
-enum TypeDepense {
-  EVENEMENT
-  GENERALE
 }
 
 enum Categorie {

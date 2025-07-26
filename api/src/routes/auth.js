@@ -136,38 +136,7 @@ router.post('/login', login);
  */
 router.get('/profile', authenticateToken, getProfile);
 
-/**
- * @swagger
- * /auth/profile:
- *   put:
- *     summary: Mettre à jour le profil utilisateur
- *     tags: [Authentification]
- *     security:
- *       - bearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               email:
- *                 type: string
- *                 format: email
- *               currentPassword:
- *                 type: string
- *               newPassword:
- *                 type: string
- *                 minLength: 6
- *     responses:
- *       200:
- *         description: Profil mis à jour avec succès
- *       400:
- *         description: Erreur de validation
- *       401:
- *         description: Non autorisé
- */
-router.put('/profile', authenticateToken, updateProfile);
+
 
 module.exports = router;
 

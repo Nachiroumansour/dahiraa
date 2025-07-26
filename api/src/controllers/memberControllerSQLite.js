@@ -1,6 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
-const { v4: uuidv4 } = require('crypto');
+const { randomUUID } = require('crypto');
 
 // Database connection
 const dbPath = process.env.DATABASE_URL || 'prisma/dev.db';
@@ -23,7 +23,7 @@ const createMember = async (req, res) => {
       });
     }
 
-    const memberId = uuidv4();
+    const memberId = randomUUID();
 
     const sql = `
       INSERT INTO "Member" (

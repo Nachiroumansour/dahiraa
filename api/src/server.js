@@ -116,17 +116,57 @@ async function initializeDatabase() {
   try {
     console.log('🔧 Initialisation de la base de données...');
     
-    // Use the setup script
-    const { exec } = require('child_process');
-    const { promisify } = require('util');
-    const execAsync = promisify(exec);
-    
+    // Try Prisma first
     try {
-      await execAsync('node setup-db.js');
-      console.log('✅ Base de données initialisée avec succès');
-    } catch (error) {
-      console.error('❌ Erreur lors de l\'initialisation:', error.message);
+      const { PrismaClient } = require('@prisma/client');
+      const bcrypt = require('bcryptjs');
+      const prisma = new PrismaClient();
+      
+      // Check if admin user exists
+      const existingAdmin = await prisma.user.findUnique({
+        where: { email: 'admin@dahiraa.com' }
+      });
+      
+      if (!existingAdmin) {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        
+        await prisma.user.create({
+          data: {
+            email: 'admin@dahiraa.com',
+            password: hashedPassword,
+            role: 'ADMIN'
+          }
+        });
+        
+        await prisma.user.create({
+          data: {
+            email: 'test@dahiraa.com',
+            password: hashedPassword,
+            role: 'ADMIN'
+          }
+        });
+        
+        console.log('✅ Base de données initialisée avec Prisma !');
+      }
+      
+      await prisma.$disconnect();
+    } catch (prismaError) {
+      console.log('⚠️ Prisma non disponible, utilisation du script SQL...');
+      
+      // Fallback to SQL script
+      const { exec } = require('child_process');
+      const { promisify } = require('util');
+      const execAsync = promisify(exec);
+      
+      try {
+        await execAsync('node setup-db.js');
+        console.log('✅ Base de données initialisée avec SQL !');
+      } catch (sqlError) {
+        console.error('❌ Erreur lors de l\'initialisation SQL:', sqlError.message);
+      }
     }
+    
+    console.log('📋 Identifiants: admin@dahiraa.com / admin123');
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
   }
