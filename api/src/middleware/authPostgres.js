@@ -26,6 +26,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     const decoded = verifyToken(token);
+    console.log('🔍 Token décodé:', { userId: decoded.userId, email: decoded.email, role: decoded.role });
     
     // Vérifier si l'utilisateur existe toujours avec PostgreSQL
     const client = getClient();
@@ -39,10 +40,12 @@ const authenticateToken = async (req, res, next) => {
     await client.end();
 
     if (result.rows.length === 0) {
+      console.log('❌ Utilisateur non trouvé avec ID:', decoded.userId);
       return res.status(401).json({ error: 'Utilisateur non trouvé' });
     }
 
     req.user = result.rows[0];
+    console.log('✅ Utilisateur authentifié:', { id: req.user.id, email: req.user.email, role: req.user.role });
     next();
   } catch (error) {
     console.error('Erreur d\'authentification:', error);
