@@ -21,7 +21,9 @@ const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
   'https://dahiraa-app.vercel.app',
-  'https://dahiraa-client.vercel.app'
+  'https://dahiraa-client.vercel.app',
+  'https://dahiraa-client-git-main-nachiroumansour.vercel.app',
+  'https://dahiraa-client-nachiroumansour.vercel.app'
 ];
 
 app.use(cors({
@@ -114,41 +116,111 @@ app.use((err, req, res, next) => {
 // Initialize database if needed
 async function initializeDatabase() {
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const bcrypt = require('bcryptjs');
-    const prisma = new PrismaClient();
-    
-    // Check if admin user exists
-    const existingAdmin = await prisma.user.findUnique({
-      where: { email: 'admin@dahiraa.com' }
-    });
-    
-    if (!existingAdmin) {
-      console.log('🔧 Initialisation de la base de données...');
-      
-      const hashedPassword = await bcrypt.hash('admin123', 10);
-      
-      await prisma.user.create({
-        data: {
-          email: 'admin@dahiraa.com',
-          password: hashedPassword,
-          role: 'ADMIN'
-        }
+    // Try Prisma first
+    try {
+      const { PrismaClient } = require('@prisma/client');
+      const bcrypt = require('bcryptjs');
+      const prisma = new PrismaClient();
+
+      // Check if admin user exists
+      const existingAdmin = await prisma.user.findUnique({
+        where: { email: 'admin@dahiraa.com' }
       });
+
+      if (!existingAdmin) {
+        console.log('🔧 Initialisation de la base de données avec Prisma...');
+
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+
+        await prisma.user.create({
+          data: {
+            email: 'admin@dahiraa.com',
+            password: hashedPassword,
+            role: 'ADMIN'
+          }
+        });
+
+        await prisma.user.create({
+          data: {
+            email: 'test@dahiraa.com',
+            password: hashedPassword,
+            role: 'ADMIN'
+          }
+        });
+
+        console.log('✅ Base de données initialisée avec succès !');
+        console.log('📋 Identifiants: admin@dahiraa.com / admin123');
+      }
+
+      await prisma.$disconnect();
+      return;
+    } catch (prismaError) {
+      console.log('⚠️ Prisma échoué, tentative avec PostgreSQL direct...');
       
-      await prisma.user.create({
-        data: {
-          email: 'test@dahiraa.com',
-          password: hashedPassword,
-          role: 'ADMIN'
-        }
+      // Fallback to direct PostgreSQL
+      const { Client } = require('pg');
+      const bcrypt = require('bcryptjs');
+      const { randomUUID } = require('crypto');
+      
+      const databaseUrl = process.env.DATABASE_URL;
+      if (!databaseUrl) {
+        throw new Error('DATABASE_URL non définie');
+      }
+
+      const client = new Client({
+        connectionString: databaseUrl,
+        ssl: process.env.NODE_ENV === 'production' ? {
+          rejectUnauthorized: false
+        } : false
       });
-      
-      console.log('✅ Base de données initialisée avec succès !');
+
+      await client.connect();
+      console.log('✅ Connecté à PostgreSQL');
+
+      // Create tables if they don't exist
+      const createTablesSQL = `
+        CREATE TABLE IF NOT EXISTS "User" (
+          "id" TEXT NOT NULL,
+          "email" TEXT NOT NULL,
+          "password" TEXT NOT NULL,
+          "role" TEXT NOT NULL DEFAULT 'ADMIN',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL,
+          CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+        );
+      `;
+
+      await client.query(createTablesSQL);
+      console.log('✅ Tables créées avec succès');
+
+      // Check if users exist
+      const existingUsers = await client.query('SELECT email FROM "User" WHERE email IN ($1, $2)', 
+        ['admin@dahiraa.com', 'test@dahiraa.com']);
+
+      const existingEmails = existingUsers.rows.map(row => row.email);
+
+      if (!existingEmails.includes('admin@dahiraa.com')) {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        await client.query(
+          'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
+          [randomUUID(), 'admin@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
+        );
+        console.log('✅ Utilisateur admin@dahiraa.com créé');
+      }
+
+      if (!existingEmails.includes('test@dahiraa.com')) {
+        const hashedPassword = await bcrypt.hash('admin123', 10);
+        await client.query(
+          'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
+          [randomUUID(), 'test@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
+        );
+        console.log('✅ Utilisateur test@dahiraa.com créé');
+      }
+
+      await client.end();
+      console.log('🎉 Base de données PostgreSQL configurée avec succès !');
       console.log('📋 Identifiants: admin@dahiraa.com / admin123');
     }
-    
-    await prisma.$disconnect();
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
   }
