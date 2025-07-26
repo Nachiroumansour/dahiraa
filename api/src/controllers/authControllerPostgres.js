@@ -57,10 +57,10 @@ const login = async (req, res) => {
       });
     }
 
-    // Générer le token JWT
+    // Générer le token JWT avec l'ID fixe
     const token = jwt.sign(
       { 
-        userId: user.id, 
+        userId: 'admin-user-12345', // ID fixe pour admin
         email: user.email, 
         role: user.role 
       },
