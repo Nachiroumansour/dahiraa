@@ -7,7 +7,7 @@
   "description": "API REST pour la gestion d'un Dahiraa (association religieuse musulmane)",
   "main": "src/server.js",
   "scripts": {
-    "start": "node src/server.js",
+    "start": "node src/server-simple.js",
     "dev": "nodemon src/server.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

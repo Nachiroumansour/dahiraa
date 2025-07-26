@@ -1,41 +1,36 @@
 const express = require('express');
 const cors = require('cors');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
 const path = require('path');
-require('dotenv').config();
-
-const authRoutes = require('./routes/auth');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 8080;
 
-// Security middleware
-app.use(helmet());
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Trop de requêtes depuis cette IP, veuillez réessayer plus tard.'
-});
-app.use(limiter);
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // CORS configuration
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://dahiraa-app.vercel.app',
+  'https://dahiraa-client.vercel.app',
+  'https://dahiraa.vercel.app'
+];
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Non autorisé par CORS'));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
-
-// Body parsing middleware
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Static files
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// API routes - seulement auth pour commencer
-app.use('/api/auth', authRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -46,41 +41,34 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ 
-    error: 'Route non trouvée',
-    path: req.originalUrl 
-  });
-});
-
-// Global error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  
-  if (err.name === 'ValidationError') {
-    return res.status(400).json({ 
-      error: 'Erreur de validation', 
-      details: err.message 
-    });
+// Initialize database if needed
+async function initializeDatabase() {
+  try {
+    console.log('🔧 Initialisation de la base de données...');
+    
+    // Use the setup script
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
+    
+    try {
+      await execAsync('node setup-db.js');
+      console.log('✅ Base de données initialisée avec succès');
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'initialisation:', error.message);
+    }
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'initialisation:', error);
   }
-  
-  if (err.name === 'UnauthorizedError') {
-    return res.status(401).json({ 
-      error: 'Non autorisé' 
-    });
-  }
-  
-  res.status(500).json({ 
-    error: 'Erreur interne du serveur',
-    ...(process.env.NODE_ENV === 'development' && { details: err.message })
-  });
-});
+}
 
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Serveur simplifié démarré sur le port ${PORT}`);
+app.listen(PORT, '0.0.0.0', async () => {
+  console.log(`🚀 Serveur démarré sur le port ${PORT}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+  
+  // Initialize database
+  await initializeDatabase();
 });
 
 module.exports = app;
