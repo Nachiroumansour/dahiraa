@@ -16,8 +16,9 @@
     "db:seed": "node prisma/seed.js",
     "db:reset": "prisma migrate reset --force",
     "db:studio": "prisma studio",
-    "db:init": "node init-db.js",
-    "db:setup": "node setup-db.js",
+               "db:init": "node init-db.js",
+           "db:setup": "node setup-db.js",
+           "db:setup-postgres": "node setup-postgres.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -44,8 +45,9 @@
     "multer": "^1.4.5-lts.1",
     "pdfkit": "^0.17.1",
     "prisma": "^6.12.0",
-    "sqlite3": "^5.1.7",
-    "swagger-jsdoc": "^6.2.8",
+            "sqlite3": "^5.1.7",
+        "pg": "^8.11.3",
+        "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
