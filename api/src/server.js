@@ -114,41 +114,19 @@ app.use((err, req, res, next) => {
 // Initialize database if needed
 async function initializeDatabase() {
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const bcrypt = require('bcryptjs');
-    const prisma = new PrismaClient();
+    console.log('🔧 Initialisation de la base de données...');
     
-    // Check if admin user exists
-    const existingAdmin = await prisma.user.findUnique({
-      where: { email: 'admin@dahiraa.com' }
-    });
+    // Use the setup script
+    const { exec } = require('child_process');
+    const { promisify } = require('util');
+    const execAsync = promisify(exec);
     
-    if (!existingAdmin) {
-      console.log('🔧 Initialisation de la base de données...');
-      
-      const hashedPassword = await bcrypt.hash('admin123', 10);
-      
-      await prisma.user.create({
-        data: {
-          email: 'admin@dahiraa.com',
-          password: hashedPassword,
-          role: 'ADMIN'
-        }
-      });
-      
-      await prisma.user.create({
-        data: {
-          email: 'test@dahiraa.com',
-          password: hashedPassword,
-          role: 'ADMIN'
-        }
-      });
-      
-      console.log('✅ Base de données initialisée avec succès !');
-      console.log('📋 Identifiants: admin@dahiraa.com / admin123');
+    try {
+      await execAsync('node setup-db.js');
+      console.log('✅ Base de données initialisée avec succès');
+    } catch (error) {
+      console.error('❌ Erreur lors de l\'initialisation:', error.message);
     }
-    
-    await prisma.$disconnect();
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
   }

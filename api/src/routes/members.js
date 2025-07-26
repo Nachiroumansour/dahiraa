@@ -5,10 +5,8 @@ const {
   getMemberById,
   updateMember,
   deleteMember,
-  getMemberStats,
-  exportMembersToExcel,
-  exportMembersToPDF
-} = require('../controllers/memberController');
+  getMemberStats
+} = require('../controllers/memberControllerSQLite');
 const { authenticateToken, requireRole } = require('../middleware/auth');
 const { upload, handleUploadError } = require('../middleware/upload');
 
@@ -344,47 +342,7 @@ router.delete('/:id', requireRole(['ADMIN']), deleteMember);
  */
 router.get('/:id/stats', getMemberStats);
 
-/**
- * @swagger
- * /members/export/excel:
- *   get:
- *     summary: Exporter la liste des membres en Excel
- *     tags: [Membres]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Fichier Excel téléchargé
- *         content:
- *           application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
- *             schema:
- *               type: string
- *               format: binary
- *       500:
- *         description: Erreur lors de l'export
- */
-router.get('/export/excel', exportMembersToExcel);
 
-/**
- * @swagger
- * /members/export/pdf:
- *   get:
- *     summary: Exporter la liste des membres en PDF
- *     tags: [Membres]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Fichier PDF téléchargé
- *         content:
- *           application/pdf:
- *             schema:
- *               type: string
- *               format: binary
- *       500:
- *         description: Erreur lors de l'export
- */
-router.get('/export/pdf', exportMembersToPDF);
 
 module.exports = router;
 
