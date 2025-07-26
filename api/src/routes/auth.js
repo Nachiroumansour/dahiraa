@@ -1,6 +1,6 @@
 const express = require('express');
 const { register, login, getProfile, updateProfile } = require('../controllers/authControllerPostgres');
-const { authenticateToken } = require('../middleware/auth');
+const { authenticateToken } = require('../middleware/authPostgres');
 
 const router = express.Router();
 
