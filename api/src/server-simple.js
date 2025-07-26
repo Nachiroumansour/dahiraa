@@ -40,6 +40,24 @@ app.use(cors({
 const dbPath = process.env.DATABASE_URL || 'prisma/dev.db';
 const db = new sqlite3.Database(dbPath);
 
+// Auth middleware
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+
+  if (!token) {
+    return res.status(401).json({ error: 'Token manquant' });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.status(403).json({ error: 'Token invalide' });
+    }
+    req.user = user;
+    next();
+  });
+};
+
 // Auth routes
 app.post('/api/auth/login', (req, res) => {
   const { email, password } = req.body;
@@ -120,6 +138,128 @@ app.post('/api/auth/register', (req, res) => {
         });
       }
     );
+  });
+});
+
+// Members routes
+app.get('/api/members', authenticateToken, (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+  const offset = (page - 1) * limit;
+
+  db.all('SELECT * FROM "Member" LIMIT ? OFFSET ?', [limit, offset], (err, members) => {
+    if (err) {
+      console.error('Erreur récupération membres:', err);
+      return res.status(500).json({ error: 'Erreur interne du serveur' });
+    }
+
+    db.get('SELECT COUNT(*) as total FROM "Member"', (err, result) => {
+      if (err) {
+        console.error('Erreur comptage membres:', err);
+        return res.status(500).json({ error: 'Erreur interne du serveur' });
+      }
+
+      res.json({
+        members,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: result.total,
+          totalPages: Math.ceil(result.total / limit)
+        }
+      });
+    });
+  });
+});
+
+app.post('/api/members', authenticateToken, (req, res) => {
+  const memberData = req.body;
+  const memberId = require('crypto').randomUUID();
+
+  const sql = `
+    INSERT INTO "Member" (
+      id, nom, prenom, dateNaissance, lieuNaissance, adresse, telephone, 
+      email, profession, dateAdhesion, numeroAdherent, statut, photo, 
+      commission, niveauArabe, categorie, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `;
+
+  const values = [
+    memberId, memberData.nom, memberData.prenom, memberData.dateNaissance,
+    memberData.lieuNaissance, memberData.adresse, memberData.telephone,
+    memberData.email, memberData.profession, memberData.dateAdhesion,
+    memberData.numeroAdherent, memberData.statut || 'ACTIF', memberData.photo,
+    memberData.commission, memberData.niveauArabe, memberData.categorie
+  ];
+
+  db.run(sql, values, function(err) {
+    if (err) {
+      console.error('Erreur création membre:', err);
+      return res.status(500).json({ error: 'Erreur interne du serveur' });
+    }
+
+    res.status(201).json({
+      message: 'Membre créé avec succès',
+      member: { id: memberId, ...memberData }
+    });
+  });
+});
+
+// Cotisations routes
+app.get('/api/cotisations', authenticateToken, (req, res) => {
+  const { page = 1, limit = 10 } = req.query;
+  const offset = (page - 1) * limit;
+
+  db.all('SELECT * FROM "Cotisation" LIMIT ? OFFSET ?', [limit, offset], (err, cotisations) => {
+    if (err) {
+      console.error('Erreur récupération cotisations:', err);
+      return res.status(500).json({ error: 'Erreur interne du serveur' });
+    }
+
+    db.get('SELECT COUNT(*) as total FROM "Cotisation"', (err, result) => {
+      if (err) {
+        console.error('Erreur comptage cotisations:', err);
+        return res.status(500).json({ error: 'Erreur interne du serveur' });
+      }
+
+      res.json({
+        cotisations,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total: result.total,
+          totalPages: Math.ceil(result.total / limit)
+        }
+      });
+    });
+  });
+});
+
+app.post('/api/cotisations', authenticateToken, (req, res) => {
+  const cotisationData = req.body;
+  const cotisationId = require('crypto').randomUUID();
+
+  const sql = `
+    INSERT INTO "Cotisation" (
+      id, memberId, montant, datePaiement, type, mois, annee, createdAt, updatedAt
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+  `;
+
+  const values = [
+    cotisationId, cotisationData.memberId, cotisationData.montant,
+    cotisationData.datePaiement, cotisationData.type || 'MENSUELLE',
+    cotisationData.mois, cotisationData.annee
+  ];
+
+  db.run(sql, values, function(err) {
+    if (err) {
+      console.error('Erreur création cotisation:', err);
+      return res.status(500).json({ error: 'Erreur interne du serveur' });
+    }
+
+    res.status(201).json({
+      message: 'Cotisation créée avec succès',
+      cotisation: { id: cotisationId, ...cotisationData }
+    });
   });
 });
 
