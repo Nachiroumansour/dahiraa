@@ -17,9 +17,9 @@ async function setupPostgreSQL() {
 
   const client = new Client({
     connectionString: databaseUrl,
-    ssl: {
+    ssl: process.env.NODE_ENV === 'production' ? {
       rejectUnauthorized: false
-    }
+    } : false
   });
 
   try {
