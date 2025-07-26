@@ -141,6 +141,17 @@ app.post('/api/auth/register', (req, res) => {
   });
 });
 
+// Route pour récupérer le profil utilisateur
+app.get('/api/auth/profile', authenticateToken, (req, res) => {
+  res.json({
+    user: {
+      id: req.user.userId,
+      email: req.user.email,
+      role: req.user.role
+    }
+  });
+});
+
 // Members routes
 app.get('/api/members', authenticateToken, (req, res) => {
   const { page = 1, limit = 10 } = req.query;
