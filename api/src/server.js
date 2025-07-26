@@ -101,85 +101,45 @@ app.use((err, req, res, next) => {
     });
   }
   
-  if (err.name === 'UnauthorizedError') {
-    return res.status(401).json({ 
-      error: 'Non autorisé' 
+  if (err.message === 'Non autorisé par CORS') {
+    return res.status(403).json({ 
+      error: 'Non autorisé par CORS' 
     });
   }
   
   res.status(500).json({ 
-    error: 'Erreur interne du serveur',
-    ...(process.env.NODE_ENV === 'development' && { details: err.message })
+    error: 'Erreur interne du serveur' 
   });
 });
 
 // Initialize database if needed
 async function initializeDatabase() {
   try {
-    // Try Prisma first
-    try {
-      const { PrismaClient } = require('@prisma/client');
-      const bcrypt = require('bcryptjs');
-      const prisma = new PrismaClient();
+    console.log('🔧 Initialisation de la base de données PostgreSQL...');
+    
+    const { Client } = require('pg');
+    const bcrypt = require('bcryptjs');
+    const { randomUUID } = require('crypto');
 
-      // Check if admin user exists
-      const existingAdmin = await prisma.user.findUnique({
-        where: { email: 'admin@dahiraa.com' }
-      });
+    const databaseUrl = process.env.DATABASE_URL;
+    if (!databaseUrl) {
+      throw new Error('DATABASE_URL non définie');
+    }
 
-      if (!existingAdmin) {
-        console.log('🔧 Initialisation de la base de données avec Prisma...');
-
-        const hashedPassword = await bcrypt.hash('admin123', 10);
-
-        await prisma.user.create({
-          data: {
-            email: 'admin@dahiraa.com',
-            password: hashedPassword,
-            role: 'ADMIN'
-          }
-        });
-
-        await prisma.user.create({
-          data: {
-            email: 'test@dahiraa.com',
-            password: hashedPassword,
-            role: 'ADMIN'
-          }
-        });
-
-        console.log('✅ Base de données initialisée avec succès !');
-        console.log('📋 Identifiants: admin@dahiraa.com / admin123');
+    const client = new Client({
+      connectionString: databaseUrl,
+      ssl: {
+        rejectUnauthorized: false
       }
+    });
 
-      await prisma.$disconnect();
-      return;
-    } catch (prismaError) {
-      console.log('⚠️ Prisma échoué, tentative avec PostgreSQL direct...');
-      
-      // Fallback to direct PostgreSQL
-      const { Client } = require('pg');
-      const bcrypt = require('bcryptjs');
-      const { randomUUID } = require('crypto');
-      
-      const databaseUrl = process.env.DATABASE_URL;
-      if (!databaseUrl) {
-        throw new Error('DATABASE_URL non définie');
-      }
+    await client.connect();
+    console.log('✅ Connecté à PostgreSQL');
 
-      const client = new Client({
-        connectionString: databaseUrl,
-        ssl: process.env.NODE_ENV === 'production' ? {
-          rejectUnauthorized: false
-        } : false
-      });
-
-      await client.connect();
-      console.log('✅ Connecté à PostgreSQL');
-
-      // Create tables if they don't exist
-      const createTablesSQL = `
-        CREATE TABLE IF NOT EXISTS "User" (
+    // Create all tables
+    const createTablesSQL = `
+      -- Table des utilisateurs
+      CREATE TABLE IF NOT EXISTS "User" (
           "id" TEXT NOT NULL,
           "email" TEXT NOT NULL,
           "password" TEXT NOT NULL,
@@ -187,40 +147,117 @@ async function initializeDatabase() {
           "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
           "updatedAt" TIMESTAMP(3) NOT NULL,
           CONSTRAINT "User_pkey" PRIMARY KEY ("id")
-        );
-      `;
+      );
 
-      await client.query(createTablesSQL);
-      console.log('✅ Tables créées avec succès');
+      -- Table des membres
+      CREATE TABLE IF NOT EXISTS "Member" (
+          "id" TEXT NOT NULL,
+          "nom" TEXT NOT NULL,
+          "prenom" TEXT NOT NULL,
+          "dateNaissance" TIMESTAMP(3),
+          "genre" TEXT,
+          "categorie" TEXT,
+          "telephone" TEXT,
+          "email" TEXT,
+          "adresse" TEXT,
+          "ville" TEXT,
+          "pays" TEXT DEFAULT 'Sénégal',
+          "photo" TEXT,
+          "statut" TEXT DEFAULT 'ACTIF',
+          "dateAdhesion" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL,
+          CONSTRAINT "Member_pkey" PRIMARY KEY ("id")
+      );
 
-      // Check if users exist
-      const existingUsers = await client.query('SELECT email FROM "User" WHERE email IN ($1, $2)', 
-        ['admin@dahiraa.com', 'test@dahiraa.com']);
+      -- Table des cotisations
+      CREATE TABLE IF NOT EXISTS "Cotisation" (
+          "id" TEXT NOT NULL,
+          "memberId" TEXT NOT NULL,
+          "montant" DECIMAL(10,2) NOT NULL,
+          "datePaiement" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "type" TEXT DEFAULT 'MENSUELLE',
+          "mois" INTEGER,
+          "annee" INTEGER,
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL,
+          CONSTRAINT "Cotisation_pkey" PRIMARY KEY ("id")
+      );
 
-      const existingEmails = existingUsers.rows.map(row => row.email);
+      -- Table des événements
+      CREATE TABLE IF NOT EXISTS "Evenement" (
+          "id" TEXT NOT NULL,
+          "titre" TEXT NOT NULL,
+          "description" TEXT,
+          "dateDebut" TIMESTAMP(3) NOT NULL,
+          "dateFin" TIMESTAMP(3),
+          "lieu" TEXT,
+          "type" TEXT DEFAULT 'REUNION',
+          "statut" TEXT DEFAULT 'PLANIFIE',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL,
+          CONSTRAINT "Evenement_pkey" PRIMARY KEY ("id")
+      );
 
-      if (!existingEmails.includes('admin@dahiraa.com')) {
-        const hashedPassword = await bcrypt.hash('admin123', 10);
-        await client.query(
-          'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
-          [randomUUID(), 'admin@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
-        );
-        console.log('✅ Utilisateur admin@dahiraa.com créé');
-      }
+      -- Table des dépenses
+      CREATE TABLE IF NOT EXISTS "Expense" (
+          "id" TEXT NOT NULL,
+          "titre" TEXT NOT NULL,
+          "description" TEXT,
+          "montant" DECIMAL(10,2) NOT NULL,
+          "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "categorie" TEXT,
+          "statut" TEXT DEFAULT 'EN_COURS',
+          "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          "updatedAt" TIMESTAMP(3) NOT NULL,
+          CONSTRAINT "Expense_pkey" PRIMARY KEY ("id")
+      );
 
-      if (!existingEmails.includes('test@dahiraa.com')) {
-        const hashedPassword = await bcrypt.hash('admin123', 10);
-        await client.query(
-          'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
-          [randomUUID(), 'test@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
-        );
-        console.log('✅ Utilisateur test@dahiraa.com créé');
-      }
+      -- Index pour améliorer les performances
+      CREATE INDEX IF NOT EXISTS "User_email_idx" ON "User"("email");
+      CREATE INDEX IF NOT EXISTS "Member_email_idx" ON "Member"("email");
+      CREATE INDEX IF NOT EXISTS "Member_telephone_idx" ON "Member"("telephone");
+      CREATE INDEX IF NOT EXISTS "Cotisation_memberId_idx" ON "Cotisation"("memberId");
+      CREATE INDEX IF NOT EXISTS "Cotisation_datePaiement_idx" ON "Cotisation"("datePaiement");
+      CREATE INDEX IF NOT EXISTS "Evenement_dateDebut_idx" ON "Evenement"("dateDebut");
+      CREATE INDEX IF NOT EXISTS "Expense_date_idx" ON "Expense"("date");
 
-      await client.end();
-      console.log('🎉 Base de données PostgreSQL configurée avec succès !');
-      console.log('📋 Identifiants: admin@dahiraa.com / admin123');
+      -- Contraintes de clés étrangères
+      ALTER TABLE "Cotisation" ADD CONSTRAINT IF NOT EXISTS "Cotisation_memberId_fkey" FOREIGN KEY ("memberId") REFERENCES "Member"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+    `;
+
+    await client.query(createTablesSQL);
+    console.log('✅ Tables créées avec succès');
+
+    // Check if users exist
+    const existingUsers = await client.query('SELECT email FROM "User" WHERE email IN ($1, $2)',
+      ['admin@dahiraa.com', 'test@dahiraa.com']);
+
+    const existingEmails = existingUsers.rows.map(row => row.email);
+
+    if (!existingEmails.includes('admin@dahiraa.com')) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      const adminId = randomUUID();
+      await client.query(
+        'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
+        [adminId, 'admin@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
+      );
+      console.log('✅ Utilisateur admin@dahiraa.com créé (ID:', adminId + ')');
     }
+
+    if (!existingEmails.includes('test@dahiraa.com')) {
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      const testId = randomUUID();
+      await client.query(
+        'INSERT INTO "User" (id, email, password, role, "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6)',
+        [testId, 'test@dahiraa.com', hashedPassword, 'ADMIN', new Date(), new Date()]
+      );
+      console.log('✅ Utilisateur test@dahiraa.com créé (ID:', testId + ')');
+    }
+
+    await client.end();
+    console.log('🎉 Base de données PostgreSQL configurée avec succès !');
+    console.log('📋 Identifiants: admin@dahiraa.com / admin123');
   } catch (error) {
     console.error('❌ Erreur lors de l\'initialisation:', error);
   }
@@ -236,5 +273,4 @@ app.listen(PORT, '0.0.0.0', async () => {
   await initializeDatabase();
 });
 
-module.exports = app;
-
+module.exports = app; 
