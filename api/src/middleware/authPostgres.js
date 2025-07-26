@@ -28,19 +28,19 @@ const authenticateToken = async (req, res, next) => {
     const decoded = verifyToken(token);
     console.log('🔍 Token décodé:', { userId: decoded.userId, email: decoded.email, role: decoded.role });
     
-    // Vérifier si l'utilisateur existe toujours avec PostgreSQL
+    // Vérifier si l'utilisateur existe toujours avec PostgreSQL (par email au lieu d'ID)
     const client = getClient();
     await client.connect();
 
     const result = await client.query(
-      'SELECT id, email, role FROM "User" WHERE id = $1',
-      [decoded.userId]
+      'SELECT id, email, role FROM "User" WHERE email = $1',
+      [decoded.email]
     );
 
     await client.end();
 
     if (result.rows.length === 0) {
-      console.log('❌ Utilisateur non trouvé avec ID:', decoded.userId);
+      console.log('❌ Utilisateur non trouvé avec email:', decoded.email);
       return res.status(401).json({ error: 'Utilisateur non trouvé' });
     }
 
