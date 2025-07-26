@@ -72,7 +72,7 @@ const login = async (req, res) => {
       message: 'Connexion réussie',
       token,
       user: {
-        id: user.id,
+        id: 'admin-user-12345', // ID fixe
         email: user.email,
         role: user.role
       }
