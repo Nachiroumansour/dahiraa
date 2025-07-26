@@ -1,6 +1,9 @@
 {
   "name": "dahiraa-api",
   "version": "1.0.0",
+  "engines": {
+    "node": "18.x"
+  },
   "description": "API REST pour la gestion d'un Dahiraa (association religieuse musulmane)",
   "main": "src/server.js",
   "scripts": {

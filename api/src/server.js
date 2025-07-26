@@ -111,11 +111,57 @@ app.use((err, req, res, next) => {
   });
 });
 
+// Initialize database if needed
+async function initializeDatabase() {
+  try {
+    const { PrismaClient } = require('@prisma/client');
+    const bcrypt = require('bcryptjs');
+    const prisma = new PrismaClient();
+    
+    // Check if admin user exists
+    const existingAdmin = await prisma.user.findUnique({
+      where: { email: 'admin@dahiraa.com' }
+    });
+    
+    if (!existingAdmin) {
+      console.log('🔧 Initialisation de la base de données...');
+      
+      const hashedPassword = await bcrypt.hash('admin123', 10);
+      
+      await prisma.user.create({
+        data: {
+          email: 'admin@dahiraa.com',
+          password: hashedPassword,
+          role: 'ADMIN'
+        }
+      });
+      
+      await prisma.user.create({
+        data: {
+          email: 'test@dahiraa.com',
+          password: hashedPassword,
+          role: 'ADMIN'
+        }
+      });
+      
+      console.log('✅ Base de données initialisée avec succès !');
+      console.log('📋 Identifiants: admin@dahiraa.com / admin123');
+    }
+    
+    await prisma.$disconnect();
+  } catch (error) {
+    console.error('❌ Erreur lors de l\'initialisation:', error);
+  }
+}
+
 // Start server
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, '0.0.0.0', async () => {
   console.log(`🚀 Serveur démarré sur le port ${PORT}`);
   console.log(`📚 Documentation API: http://localhost:${PORT}/api-docs`);
   console.log(`🏥 Health check: http://localhost:${PORT}/api/health`);
+  
+  // Initialize database
+  await initializeDatabase();
 });
 
 module.exports = app;
